@@ -1,0 +1,197 @@
+create table signupsh (
+    id number primary key,
+    name varchar2(100) not null,
+    email varchar2(100) unique not null,
+    password varchar2(100) not null
+);
+
+create sequence signupsh_seq
+start with 1
+increment by 1
+nocache;
+
+create or replace trigger signupsh_trigger
+before insert on signupsh
+for each row
+begin
+    select signupsh_seq.nextval into :new.id from dual;
+end;
+/
+
+
+
+create table bookorder (
+    order_id number primary key,
+    name varchar2(25) not null,
+    contact varchar2(15) not null,
+    book varchar2(20) not null,
+    address varchar2(30) not null,
+    email varchar2(20) not null
+);
+
+create sequence bookorder_seq
+start with 1
+increment by 1
+nocache;
+
+create or replace trigger bookorder_trigger
+before insert on bookorder
+for each row
+begin
+    select bookorder_seq.nextval into :new.order_id from dual;
+end;
+/
+
+
+
+create or replace procedure login_user(
+    p_email in signupsh.email%type,
+    p_password in signupsh.password%type
+)
+as
+    v_count number;
+begin
+    select count(*) into v_count 
+    from signupsh 
+    where email = p_email and password = p_password;
+
+    if v_count = 0 then
+        raise_application_error(-20001, 'invalid email or password');
+    end if;
+
+    dbms_output.put_line('login successful!');
+exception
+    when others then
+        raise_application_error(-20002, 'an error occurred.');
+end;
+/
+
+
+
+create or replace procedure insert_order(
+    p_name in bookorder.name%type,
+    p_contact in bookorder.contact%type,
+    p_book in bookorder.book%type,
+    p_address in bookorder.address%type,
+    p_email in bookorder.email%type
+)
+as
+begin
+    insert into bookorder(order_id, name, contact, book, address, email)
+    values (bookorder_seq.nextval, p_name, p_contact, p_book, p_address, p_email);
+    commit;
+end;
+/
+
+
+
+declare
+    cursor book_cursor is select * from bookorder;
+    book_rec bookorder%rowtype;
+begin
+    open book_cursor;
+    loop
+        fetch book_cursor into book_rec;
+        exit when book_cursor%notfound;
+        dbms_output.put_line('order id: ' || book_rec.order_id || ' book: ' || book_rec.book);
+    end loop;
+    close book_cursor;
+end;
+/
+
+
+
+create or replace function get_order_count
+return number
+is
+    v_count number;
+begin
+    select count(*) into v_count from bookorder;
+    return v_count;
+end;
+/
+
+
+
+create or replace trigger prevent_duplicate_orders
+before insert on bookorder
+for each row
+declare
+    v_count number;
+begin
+    select count(*) into v_count
+    from bookorder
+    where email = :new.email and book = :new.book;
+    
+    if v_count > 0 then
+        raise_application_error(-20003, 'duplicate order: you have already ordered this book.');
+    end if;
+end;
+/
+
+
+
+create or replace procedure handle_order_exception (
+    p_name bookorder.name%type,
+    p_contact bookorder.contact%type,
+    p_book bookorder.book%type,
+    p_address bookorder.address%type,
+    p_email bookorder.email%type
+)
+as
+begin
+    insert into bookorder(order_id, name, contact, book, address, email)
+    values (bookorder_seq.nextval, p_name, p_contact, p_book, p_address, p_email);
+    
+    commit;
+    dbms_output.put_line('order placed successfully!');
+exception
+    when others then
+        dbms_output.put_line('error: ' || sqlerrm);
+        rollback;
+end;
+/
+
+
+
+SELECT get_order_count FROM dual;
+---after creating function type above command.
+
+
+COLUMN name FORMAT A20
+COLUMN email FORMAT A30
+COLUMN password FORMAT A15
+SET LINESIZE 200
+SET PAGESIZE 50
+COLUMN order_id FORMAT 99999
+COLUMN name FORMAT A30
+COLUMN contact FORMAT A15
+COLUMN book FORMAT A40
+COLUMN address FORMAT A25 
+COLUMN email FORMAT A25
+select * from signupsh ORDER BY ID DESC;
+SELECT * FROM bookorder ORDER BY ORDER_ID DESC;    
+
+
+
+CREATE OR REPLACE PROCEDURE fetch_orders_cursor(p_order_cursor OUT SYS_REFCURSOR)
+AS
+BEGIN
+    OPEN p_order_cursor FOR
+    SELECT order_id, name, contact, book, address, email FROM bookorder ORDER BY order_id;
+END;
+/
+	
+
+CREATE OR REPLACE PROCEDURE fetch_orders_cursor(p_order_cursor OUT SYS_REFCURSOR)
+AS
+BEGIN
+    OPEN p_order_cursor FOR
+    SELECT order_id, name, contact, book, address, email FROM bookorder ORDER BY order_id;
+END;
+/
+
+
+
+
+
